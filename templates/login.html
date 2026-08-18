@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PC Monitor — Connexion</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="login-body">
+  <div class="login-card">
+    <div class="login-logo">
+      <span class="logo-dot"></span>
+      <h1>PC MONITOR</h1>
+    </div>
+
+    {% if needs_setup %}
+      <p class="login-subtitle">Première utilisation — créez le compte administrateur.</p>
+    {% else %}
+      <p class="login-subtitle">Connectez-vous pour accéder au tableau de bord.</p>
+    {% endif %}
+
+    {% if error %}
+      <div class="alert-box alert-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('login') }}" class="login-form">
+      <label for="username">Nom d'utilisateur</label>
+      <input type="text" id="username" name="username" autocomplete="username" required autofocus>
+
+      <label for="password">Mot de passe</label>
+      <input type="password" id="password" name="password" autocomplete="current-password" required>
+
+      <button type="submit" class="btn btn-primary btn-block">
+        {% if needs_setup %}CRÉER LE COMPTE{% else %}SE CONNECTER{% endif %}
+      </button>
+    </form>
+  </div>
+</body>
+</html>

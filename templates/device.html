@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PC Monitor — {{ device.name }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <span class="logo-dot"></span>
+      <span>PC MONITOR</span>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="{{ url_for('dashboard') }}" class="nav-item">← Retour au dashboard</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">{{ username }}</div>
+      <a href="{{ url_for('logout') }}" class="btn-logout">Déconnexion</a>
+    </div>
+  </aside>
+
+  <main class="main-content" id="device-page" data-device-id="{{ device.id }}">
+    <header class="topbar">
+      <div>
+        <h2 id="device-title">{{ device.name }}</h2>
+        <p><span id="device-status-badge" class="status-badge status-{{ device.status }}">
+          {% if device.status == 'online' %}🟢 EN LIGNE{% else %}🔴 HORS LIGNE{% endif %}
+        </span></p>
+      </div>
+      <div class="device-actions-top">
+        <button class="btn btn-secondary" id="btn-rename">RENOMMER</button>
+        <button class="btn btn-secondary" id="btn-restart">🔄 REDÉMARRER</button>
+        <button class="btn btn-danger" id="btn-shutdown">⏻ ÉTEINDRE</button>
+      </div>
+    </header>
+
+    <div class="detail-grid">
+
+      <section class="card">
+        <h3>Informations générales</h3>
+        <table class="info-table">
+          <tr><td>Nom</td><td id="info-name"></td></tr>
+          <tr><td>UUID</td><td id="info-uuid" class="mono"></td></tr>
+          <tr><td>Hostname</td><td id="info-hostname"></td></tr>
+          <tr><td>Système</td><td id="info-os"></td></tr>
+          <tr><td>Version</td><td id="info-version"></td></tr>
+          <tr><td>Architecture</td><td id="info-arch"></td></tr>
+          <tr><td>Uptime</td><td id="info-uptime"></td></tr>
+          <tr><td>Dernière connexion</td><td id="info-last-seen"></td></tr>
+        </table>
+      </section>
+
+      <section class="card">
+        <h3>CPU</h3>
+        <div class="metric-value" id="cpu-value">—</div>
+        <canvas id="cpu-chart" height="120"></canvas>
+      </section>
+
+      <section class="card">
+        <h3>RAM</h3>
+        <div class="metric-value" id="ram-value">—</div>
+        <canvas id="ram-chart" height="120"></canvas>
+      </section>
+
+      <section class="card">
+        <h3>Disque</h3>
+        <div id="disk-list"></div>
+      </section>
+
+      <section class="card">
+        <h3>Batterie</h3>
+        <div id="battery-info"></div>
+      </section>
+
+      <section class="card">
+        <h3>Température</h3>
+        <div id="temperature-info"></div>
+      </section>
+
+      <section class="card">
+        <h3>Réseau</h3>
+        <div id="network-info"></div>
+      </section>
+
+      <section class="card wide">
+        <h3>Wake-on-LAN</h3>
+        <table class="info-table">
+          <tr><td>MAC</td><td id="wol-mac" class="mono"></td></tr>
+          <tr><td>Wake-on-LAN</td><td id="wol-status"></td></tr>
+        </table>
+        <button class="btn btn-primary" id="btn-wake">🟢 ALLUMER</button>
+        <button class="btn btn-secondary" id="btn-test-wol">ENVOYER UN PAQUET DE TEST</button>
+        <p id="wol-result" class="hint"></p>
+
+        <details class="wol-guide">
+          <summary>Guide : activer Wake-on-LAN sur Windows 11 et dans le BIOS/UEFI</summary>
+          <ol>
+            <li>Redémarrez l'ordinateur et entrez dans le BIOS/UEFI (touche Suppr, F2 ou F10 selon le fabricant).</li>
+            <li>Activez les options "Wake on LAN", "Power On by PCI-E/PCI" ou équivalent.</li>
+            <li>Sous Windows 11 : Gestionnaire de périphériques → Cartes réseau → propriétés de la carte → onglet "Gestion de l'alimentation" → cochez "Autoriser ce périphérique à sortir l'ordinateur du mode veille".</li>
+            <li>Dans le même onglet "Avancé", activez "Wake on Magic Packet".</li>
+            <li>Assurez-vous que l'ordinateur reste alimenté (pas d'arrêt total de l'alimentation électrique).</li>
+          </ol>
+        </details>
+      </section>
+
+      <section class="card wide">
+        <h3>Historique récent</h3>
+        <div id="history-mini"></div>
+      </section>
+
+      <section class="card wide danger-zone">
+        <h3>Zone d'urgence</h3>
+        <div class="emergency-box">
+          <div>
+            <strong>⚠️ URGENCE</strong>
+            <p class="hint">Applique immédiatement la procédure d'arrêt d'urgence sécurisé à cet appareil.</p>
+          </div>
+          <button class="btn btn-danger" id="btn-emergency">ACTIVER LE MODE URGENCE</button>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<!-- Modales (mêmes IDs que dashboard.html pour réutiliser device.js) -->
+<div id="modal-confirm" class="modal-overlay hidden">
+  <div class="modal">
+    <h3 id="modal-confirm-title">Confirmation</h3>
+    <p id="modal-confirm-text"></p>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="modal-confirm-cancel">ANNULER</button>
+      <button class="btn btn-danger" id="modal-confirm-ok">CONFIRMER</button>
+    </div>
+  </div>
+</div>
+
+<div id="modal-emergency-code" class="modal-overlay hidden">
+  <div class="modal">
+    <h3>MODE URGENCE</h3>
+    <p>Cette action va appliquer immédiatement la procédure d'urgence à l'appareil sélectionné.</p>
+    <p id="emergency-error" class="alert-box alert-error hidden"></p>
+    <label for="emergency-code-input">Entrez le code de confirmation</label>
+    <input type="password" id="emergency-code-input" autocomplete="off">
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="emergency-cancel-1">ANNULER</button>
+      <button class="btn btn-danger" id="emergency-continue">CONTINUER</button>
+    </div>
+  </div>
+</div>
+
+<div id="modal-emergency-confirm" class="modal-overlay hidden">
+  <div class="modal">
+    <h3>CONFIRMATION FINALE</h3>
+    <p>Appareil : <strong id="emergency-device-name"></strong></p>
+    <p>Action : <strong>ARRÊT D'URGENCE SÉCURISÉ</strong></p>
+    <p>Voulez-vous continuer ?</p>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="emergency-cancel-2">ANNULER</button>
+      <button class="btn btn-danger" id="emergency-confirm-final">CONFIRMER</button>
+    </div>
+  </div>
+</div>
+
+<div id="modal-rename" class="modal-overlay hidden">
+  <div class="modal">
+    <h3>Renommer l'appareil</h3>
+    <input type="text" id="rename-input">
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="rename-cancel">ANNULER</button>
+      <button class="btn btn-primary" id="rename-ok">ENREGISTRER</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container" class="toast-container"></div>
+<section class="card wide screen-card">
+
+    <div class="screen-header">
+        <div>
+            <h3>Écran de l'appareil</h3>
+            <p id="screen-status" class="hint">
+                Partage d'écran désactivé
+            </p>
+        </div>
+
+        <div>
+            <button
+                class="btn btn-primary"
+                id="btn-screen-start">
+                ▶ VOIR L'ÉCRAN
+            </button>
+
+            <button
+                class="btn btn-danger"
+                id="btn-screen-stop">
+                ■ ARRÊTER
+            </button>
+        </div>
+    </div>
+
+    <div id="screen-viewer" class="screen-viewer">
+        <div class="screen-placeholder">
+            <div>ÉCRAN NON DISPONIBLE</div>
+            <span>
+                Activez le partage d'écran pour afficher l'écran.
+            </span>
+        </div>
+    </div>
+
+</section>
+<script src="{{ url_for('static', filename='js/device.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PC Monitor — Dashboard</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+</head>
+<body>
+<div class="app-layout">
+
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <span class="logo-dot"></span>
+      <span>PC MONITOR</span>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="#" class="nav-item active" data-view="view-dashboard">Dashboard</a>
+      <a href="#" class="nav-item" data-view="view-devices">Appareils</a>
+      <a href="#" class="nav-item" data-view="view-alerts">Alertes</a>
+      <a href="#" class="nav-item" data-view="view-history">Historique</a>
+      <a href="#" class="nav-item" data-view="view-settings">Paramètres</a>
+      <a href="#" class="nav-item" data-view="view-security">Sécurité</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">{{ username }}</div>
+      <a href="{{ url_for('logout') }}" class="btn-logout">Déconnexion</a>
+    </div>
+  </aside>
+
+  <main class="main-content">
+
+    <header class="topbar">
+      <div>
+        <h2 id="page-title">Dashboard</h2>
+        <p class="server-address">Adresse du serveur : <code>{{ server_ip }}:{{ server_port }}</code>
+          <button class="btn-copy" id="copy-server-address">COPIER</button>
+        </p>
+      </div>
+      <div id="toast-container" class="toast-container"></div>
+    </header>
+
+    <!-- ============ VUE : DASHBOARD ============ -->
+    <section id="view-dashboard" class="view active">
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-value" id="stat-total">0</div>
+          <div class="stat-label">Appareils</div>
+        </div>
+        <div class="stat-card stat-online">
+          <div class="stat-value" id="stat-online">0</div>
+          <div class="stat-label">En ligne</div>
+        </div>
+        <div class="stat-card stat-offline">
+          <div class="stat-value" id="stat-offline">0</div>
+          <div class="stat-label">Hors ligne</div>
+        </div>
+        <div class="stat-card stat-alerts">
+          <div class="stat-value" id="stat-alerts">0</div>
+          <div class="stat-label">Alertes</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="stat-cpu-avg">0%</div>
+          <div class="stat-label">CPU moyen</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="stat-ram-avg">0%</div>
+          <div class="stat-label">RAM moyenne</div>
+        </div>
+      </div>
+
+      <h3 class="section-title">Appareils</h3>
+      <div id="device-grid" class="device-grid"></div>
+    </section>
+
+    <!-- ============ VUE : APPAREILS ============ -->
+    <section id="view-devices" class="view">
+      <h3 class="section-title">Tous les appareils</h3>
+      <div id="device-grid-full" class="device-grid"></div>
+    </section>
+
+    <!-- ============ VUE : ALERTES ============ -->
+    <section id="view-alerts" class="view">
+      <h3 class="section-title">Alertes</h3>
+      <div id="alerts-list" class="list-panel"></div>
+    </section>
+
+    <!-- ============ VUE : HISTORIQUE ============ -->
+    <section id="view-history" class="view">
+      <h3 class="section-title">Historique des commandes</h3>
+      <div id="history-list" class="list-panel"></div>
+
+      <h3 class="section-title">Mode urgence</h3>
+      <div id="emergency-history-list" class="list-panel"></div>
+    </section>
+
+    <!-- ============ VUE : PARAMÈTRES ============ -->
+    <section id="view-settings" class="view">
+      <h3 class="section-title">Paramètres</h3>
+      <form id="settings-form" class="settings-form card">
+        <label>Nom du serveur</label>
+        <input type="text" id="set-server-name" name="server_name">
+
+        <label>Intervalle de collecte (secondes)</label>
+        <input type="number" id="set-interval" name="collect_interval" min="1" step="1">
+
+        <label>Port</label>
+        <input type="number" id="set-port" name="port" min="1" max="65535" readonly>
+        <p class="hint">Le port se configure au lancement du serveur (variable MONITOR_PORT).</p>
+
+        <label>Seuil CPU (%)</label>
+        <input type="number" id="set-cpu" name="cpu_threshold" min="1" max="100">
+
+        <label>Seuil RAM (%)</label>
+        <input type="number" id="set-ram" name="ram_threshold" min="1" max="100">
+
+        <label>Seuil batterie (%)</label>
+        <input type="number" id="set-battery" name="battery_threshold" min="1" max="100">
+
+        <button type="submit" class="btn btn-primary">ENREGISTRER</button>
+      </form>
+    </section>
+
+    <!-- ============ VUE : SÉCURITÉ ============ -->
+    <section id="view-security" class="view">
+      <h3 class="section-title">Appareils autorisés</h3>
+      <div id="security-list" class="list-panel"></div>
+
+      <h3 class="section-title">Rappel de sécurité</h3>
+      <div class="card security-notice">
+        <ul>
+          <li>Authentification obligatoire pour chaque commande.</li>
+          <li>Chaque appareil possède un token unique révocable à tout moment.</li>
+          <li>Aucune collecte de mots de passe, frappes clavier, cookies ou fichiers personnels.</li>
+          <li>Aucun keylogger, aucune webcam ou microphone caché, aucune capture d'écran cachée.</li>
+          <li>Aucune persistance cachée : le démarrage automatique utilise le Planificateur de tâches Windows, visible et désactivable.</li>
+        </ul>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- Modale : confirmation générique -->
+<div id="modal-confirm" class="modal-overlay hidden">
+  <div class="modal">
+    <h3 id="modal-confirm-title">Confirmation</h3>
+    <p id="modal-confirm-text"></p>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="modal-confirm-cancel">ANNULER</button>
+      <button class="btn btn-danger" id="modal-confirm-ok">CONFIRMER</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modale : mode urgence étape 1 (code) -->
+<div id="modal-emergency-code" class="modal-overlay hidden">
+  <div class="modal">
+    <h3>MODE URGENCE</h3>
+    <p>Cette action va appliquer immédiatement la procédure d'urgence à l'appareil sélectionné.</p>
+    <p id="emergency-error" class="alert-box alert-error hidden"></p>
+    <label for="emergency-code-input">Entrez le code de confirmation</label>
+    <input type="password" id="emergency-code-input" autocomplete="off">
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="emergency-cancel-1">ANNULER</button>
+      <button class="btn btn-danger" id="emergency-continue">CONTINUER</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modale : mode urgence étape 2 (confirmation finale) -->
+<div id="modal-emergency-confirm" class="modal-overlay hidden">
+  <div class="modal">
+    <h3>CONFIRMATION FINALE</h3>
+    <p>Appareil : <strong id="emergency-device-name"></strong></p>
+    <p>Action : <strong>ARRÊT D'URGENCE SÉCURISÉ</strong></p>
+    <p>Voulez-vous continuer ?</p>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="emergency-cancel-2">ANNULER</button>
+      <button class="btn btn-danger" id="emergency-confirm-final">CONFIRMER</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modale : renommer un appareil -->
+<div id="modal-rename" class="modal-overlay hidden">
+  <div class="modal">
+    <h3>Renommer l'appareil</h3>
+    <input type="text" id="rename-input">
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="rename-cancel">ANNULER</button>
+      <button class="btn btn-primary" id="rename-ok">ENREGISTRER</button>
+    </div>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>
